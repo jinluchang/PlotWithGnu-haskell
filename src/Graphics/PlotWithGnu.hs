@@ -68,7 +68,7 @@ commandMpToEps = [s|
 for i in *.mp ; do
 	fn=${i%.mp}
 	echo $fn
-	mpost -jobname mpost-job $fn.mp
+	TEX=latex mpost -jobname mpost-job $fn.mp
 	mv mpost-job.0 $fn.eps
 done
 |]
