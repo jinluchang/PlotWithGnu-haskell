@@ -10,34 +10,13 @@ import System.FilePath
 import System.Posix.Temp
 import Data.String.QQ
 
-type PlotFile = String
-
 type DataTable = [[Double]]
 
-mkPlotFile :: FilePath -> [String] -> String -> [(String, String)] -> PlotFile
-mkPlotFile fn settings plot plotlines = unlines $
-    [ mpTermHeader
-    , mpSetOutput fn ]
-    ++ settings ++ 
-    [ plot ++ " \\"
-    , intercalate ", \\\n" $ map go plotlines ]
-  where
-    go (dataFile, attr) = "  " ++ show dataFile ++ " " ++ attr
+saveDataTable :: FilePath -> DataTable -> IO ()
+saveDataTable filename table = writeFile filename $ showDataTable table
 
-mpTermHeader :: PlotFile
-mpTermHeader = "set term mp color latex prologues 3 amstex"
-
-mpSetOutput :: FilePath -> PlotFile
-mpSetOutput fn = "set output '" ++ fn ++ ".mp'"
-
-createDataFile :: FilePath -> DataTable -> IO FilePath
-createDataFile tempdir table = do
-    (dataFile, hDataFile) <- openTempFile tempdir "data-file-"
-    hPutStr hDataFile contents
-    hClose hDataFile
-    return dataFile
-  where
-    contents = showTable . (map . map) show $ table
+loadDataTable :: FilePath -> IO DataTable
+loadDataTable filename = readFile filename >>= return . readDataTable
 
 showTable :: [[String]] -> String
 showTable = unlines . map unwords . transpose . go . transpose where
@@ -49,6 +28,40 @@ showTable = unlines . map unwords . transpose . go . transpose where
 
 showTable' :: [[String]] -> String
 showTable' = unlines . map unwords
+
+readTable :: String -> [[String]]
+readTable = map words . lines
+
+showDataTable :: DataTable -> String
+showDataTable = showTable . (map . map) show
+
+readDataTable :: String -> DataTable
+readDataTable = (map . map) read . readTable
+
+createDataFile :: FilePath -> DataTable -> IO FilePath
+createDataFile tempdir table = do
+    (dataFile, hDataFile) <- openTempFile tempdir "data-file-"
+    hPutStr hDataFile $ showDataTable table
+    hClose hDataFile
+    return dataFile
+
+type PlotFile = String
+
+mkPlotFile :: FilePath -> [String] -> String -> [(String, String)] -> PlotFile
+mkPlotFile fn settings plot plotlines = unlines $
+    [ mpTermHeader
+    , mpSetOutput fn ]
+    ++ settings ++
+    [ plot ++ " \\"
+    , intercalate ", \\\n" $ map go plotlines ]
+  where
+    go (dataFile, attr) = "  " ++ show dataFile ++ " " ++ attr
+
+mpTermHeader :: PlotFile
+mpTermHeader = "set term mp color latex prologues 3 amstex"
+
+mpSetOutput :: FilePath -> PlotFile
+mpSetOutput fn = "set output '" ++ fn ++ ".mp'"
 
 runGnuplotMp :: FilePath -> PlotFile -> IO ()
 runGnuplotMp tempdir input = do
