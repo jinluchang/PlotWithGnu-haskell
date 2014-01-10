@@ -1,4 +1,4 @@
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE QuasiQuotes, ForeignFunctionInterface #-}
 module Graphics.PlotWithGnu where
 
 import Data.List
@@ -10,6 +10,11 @@ import System.FilePath
 import System.Posix.Temp
 import Data.String.QQ
 
+import qualified Data.ByteString.Char8 as B
+import Foreign.C.Types
+import Foreign.C.String
+import System.IO.Unsafe
+
 type DataTable = [[Double]]
 
 saveDataTable :: FilePath -> DataTable -> IO ()
@@ -17,6 +22,14 @@ saveDataTable filename table = writeFile filename $ showDataTable table
 
 loadDataTable :: FilePath -> IO DataTable
 loadDataTable filename = readFile filename >>= return . readDataTable
+
+loadDataTable' :: FilePath -> IO DataTable
+loadDataTable' filename = B.readFile filename >>= return . (map . map) unsafeReadDouble . map B.words . B.lines
+
+unsafeReadDouble :: B.ByteString -> Double
+unsafeReadDouble str = unsafePerformIO $ B.useAsCString str c_atof
+
+foreign import ccall unsafe "stdlib.h atof" c_atof :: CString -> IO Double
 
 showTable :: [[String]] -> String
 showTable = unlines . map unwords . transpose . go . transpose where
