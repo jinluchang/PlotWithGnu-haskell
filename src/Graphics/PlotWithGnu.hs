@@ -2,11 +2,12 @@
 module Graphics.PlotWithGnu where
 
 import Data.List
+import Control.Monad
 import System.IO
 import System.Process
 import System.Directory
-import Control.Monad
 import System.FilePath
+import System.Directory
 import System.Posix.Temp
 import Data.String.QQ
 
@@ -16,6 +17,15 @@ import Foreign.C.String
 import System.IO.Unsafe
 
 type DataTable = [[Double]]
+
+select :: [Int] -> [a] -> [a]
+select [] _ = []
+select (n:ns) xs = xs !! n : select ns xs
+
+transpose'               :: [[a]] -> [[a]]
+transpose' []             = []
+transpose' ([]     : _)   = [] -- try to make transpose memory efficient
+transpose' ((x:xs) : xss) = (x : [h | (h:_) <- xss]) : transpose' (xs : [ t | (_:t) <- xss])
 
 saveDataTable :: FilePath -> DataTable -> IO ()
 saveDataTable filename table = writeFile filename $ showDataTable table
@@ -51,12 +61,12 @@ showDataTable = showTable . (map . map) show
 readDataTable :: String -> DataTable
 readDataTable = (map . map) read . readTable
 
-createDataFile :: FilePath -> DataTable -> IO FilePath
-createDataFile tempdir table = do
-    (dataFile, hDataFile) <- openTempFile tempdir "data-file-"
-    hPutStr hDataFile $ showDataTable table
-    hClose hDataFile
+createDataFile :: Int -> DataTable -> IO FilePath
+createDataFile id table = do
+    saveDataTable dataFile table
     return dataFile
+  where
+    dataFile = "data-file-" ++ show id
 
 type PlotFile = String
 
@@ -76,16 +86,16 @@ mpTermHeader = "set term mp color latex prologues 3 amstex"
 mpSetOutput :: FilePath -> PlotFile
 mpSetOutput fn = "set output '" ++ fn ++ ".mp'"
 
-runGnuplotMp :: FilePath -> PlotFile -> IO ()
-runGnuplotMp tempdir input = do
-    writeFile (tempdir </> "plotfile") input
-    hlogGnuplot <- openFile (tempdir </> "log") AppendMode
-    void $ runProcess "gnuplot" ["plotfile"] (Just tempdir) Nothing Nothing (Just hlogGnuplot) Nothing
+runGnuplotMp :: PlotFile -> IO ()
+runGnuplotMp input = do
+    writeFile "plotfile" input
+    hlogGnuplot <- openFile "log" AppendMode
+    void $ runProcess "gnuplot" ["plotfile"] Nothing Nothing Nothing (Just hlogGnuplot) Nothing
         >>= waitForProcess
     hClose hlogGnuplot
-    writeFile (tempdir </> "convert.sh") commandMpToEps
-    hlogConvert <- openFile (tempdir </> "log") AppendMode
-    void $ runProcess "bash" ["convert.sh"] (Just tempdir) Nothing Nothing (Just hlogConvert) Nothing
+    writeFile "convert.sh" commandMpToEps
+    hlogConvert <- openFile "log" AppendMode
+    void $ runProcess "bash" ["convert.sh"] Nothing Nothing Nothing (Just hlogConvert) Nothing
         >>= waitForProcess
     hClose hlogConvert
 
@@ -103,9 +113,10 @@ gnuplot :: FilePath -> [String] -> String -> [(DataTable, String)] -> IO FilePat
 gnuplot fn settings plot datalines = do
     tempdirP <- getTemporaryDirectory
     tempdir <- mkdtemp $ tempdirP </> "plot-with-gnu-"
-    dataFiles <- mapM (createDataFile tempdir) dataTables
+    setCurrentDirectory tempdir
+    dataFiles <- zipWithM createDataFile [1..] dataTables
     let plotfile = mkPlotFile fn settings plot $ zip dataFiles $ map snd datalines
-    runGnuplotMp tempdir plotfile
+    runGnuplotMp plotfile
     -- mapM_ removeFile dataFiles
     return $ tempdir </> replaceExtension fn ".eps"
   where
@@ -119,10 +130,14 @@ saveFile old new = void . system $ "mv '" ++ old ++ "' '" ++ new ++ "'"
 
 plotview :: [String] -> String -> [(DataTable, String)] -> IO ()
 plotview settings plot datalines = do
+    pwd <- getCurrentDirectory
     fn <- gnuplot "PlotWithGnu" settings plot datalines
+    setCurrentDirectory pwd
     viewEps fn
 
 plotsave :: FilePath -> [String] -> String -> [(DataTable, String)] -> IO ()
 plotsave fn settings plot datalines = do
+    pwd <- getCurrentDirectory
     fn' <- gnuplot "PlotWithGnu" settings plot datalines
+    setCurrentDirectory pwd
     saveFile fn' fn
