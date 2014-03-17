@@ -34,7 +34,11 @@ loadDataTable :: FilePath -> IO DataTable
 loadDataTable filename = readFile filename >>= return . readDataTable
 
 loadDataTable' :: FilePath -> IO DataTable
-loadDataTable' filename = B.readFile filename >>= return . (map . map) unsafeReadDouble . map B.words . B.lines
+loadDataTable' filename = B.readFile filename >>=
+    return . (map . map) unsafeReadDouble . map B.words .
+    filter (not . isComment) . B.lines
+  where
+    isComment l = B.head l == '#'
 
 unsafeReadDouble :: B.ByteString -> Double
 unsafeReadDouble str = unsafePerformIO $ B.useAsCString str c_atof
@@ -53,7 +57,8 @@ showTable' :: [[String]] -> String
 showTable' = unlines . map unwords
 
 readTable :: String -> [[String]]
-readTable = map words . lines
+readTable = map words . filter (not . isComment) . lines where
+    isComment l = head l == '#'
 
 showDataTable :: DataTable -> String
 showDataTable = showTable . (map . map) show
