@@ -38,7 +38,7 @@ loadDataTable' filename = B.readFile filename >>=
     return . (map . map) unsafeReadDouble . map B.words .
     filter (not . isComment) . B.lines
   where
-    isComment l = B.head l == '#'
+    isComment l = B.null l || B.head l == '#'
 
 unsafeReadDouble :: B.ByteString -> Double
 unsafeReadDouble str = unsafePerformIO $ B.useAsCString str c_atof
