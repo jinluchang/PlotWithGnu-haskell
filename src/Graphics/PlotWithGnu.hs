@@ -67,6 +67,7 @@ readDataTable :: String -> DataTable
 readDataTable = (map . map) read . readTable
 
 createDataFile :: Int -> DataTable -> IO FilePath
+createDataFile _ [] = return ""
 createDataFile id table = do
     saveDataTable dataFile table
     return dataFile
@@ -83,6 +84,7 @@ mkPlotFile fn settings plot plotlines = unlines $
     [ plot ++ " \\"
     , intercalate ", \\\n" $ map go plotlines ]
   where
+    go ("", attr) = "  " ++ attr
     go (dataFile, attr) = "  " ++ show dataFile ++ " " ++ attr
 
 mpTermHeader :: PlotFile
