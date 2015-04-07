@@ -22,6 +22,9 @@ select :: [Int] -> [a] -> [a]
 select [] _ = []
 select (n:ns) xs = xs !! n : select ns xs
 
+fselect :: [[a] -> a] -> [a] -> [a]
+fselect fs xs = map ($ xs) fs
+
 transpose'               :: [[a]] -> [[a]]
 transpose' []             = []
 transpose' ([]     : _)   = [] -- try to make transpose memory efficient
